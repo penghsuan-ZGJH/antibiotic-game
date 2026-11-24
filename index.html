@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>抗生素大作戰：超級細菌保衛戰</title>
+<style>
+  :root {
+    --bg-color: #f0f4f8;
+    --primary-blue: #2563eb;
+    --primary-green: #16a34a;
+    --danger-red: #dc2626;
+    --warning-amber: #d97706;
+    --purple-dark: #581c87;
+    --card-bg: #ffffff;
+  }
+
+  * {
+    box-sizing: border-box;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    touch-action: manipulation;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: "Microsoft JhengHei", "PingFang TC", sans-serif;
+    background-color: var(--bg-color);
+    color: #1e293b;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* 頂部狀態列 */
+  header {
+    background: #ffffff;
+    padding: 10px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    z-index: 10;
+  }
+
+  .top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    font-size: 1.1rem;
+  }
+
+  .stat-badge {
+    background: #e2e8f0;
+    padding: 4px 12px;
+    border-radius: 20px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stage-badge {
+    background: #dbeafe;
+    color: #1d4ed8;
+    font-size: 0.9rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+  }
+
+  .mute-btn {
+    background: #f1f5f9;
+    border: 2px solid #cbd5e1;
+    border-radius: 50%;
+    width: 38px;
+    height: 38px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* 血量與抗藥性進度條 */
+  .bars-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+
+  .bar-container {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .bar-label {
+    font-size: 0.85rem;
+    font-weight: bold;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 14px;
+    background: #e2e8f0;
+    border-radius: 7px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .progress-fill {
+    height: 100%;
+    transition: width 0.25s ease, background-color 0.3s;
+  }
+
+  #hp-fill { background: #22c55e; width: 100%; }
+  #res-fill { background: #9333ea; width: 0%; }
+
+  /* 遊戲主舞台：九宮格 */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .grid-board {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 12px;
+    width: 100%;
+    max-width: 540px;
+    aspect-ratio: 1 / 1;
+    max-height: 58dvh;
+  }
+
+  .hole {
+    background: radial-gradient(circle at 50% 60%, #cbd5e1 0%, #94a3b8 85%, #64748b 100%);
+    border-radius: 24px;
+    box-shadow: inset 0 8px 14px rgba(0,0,0,0.3), 0 4px 6px rgba(255,255,255,0.8);
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+  }
+
+  /* 角色本體動畫 */
+  .entity {
+    width: 88%;
+    height: 88%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transform: translateY(110%);
+    transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    position: relative;
+    pointer-events: none;
+  }
+
+  .entity.active {
+    transform: translateY(0%);
+  }
+
+  .entity.hit-shake {
+    animation: shake 0.25s ease-in-out;
+  }
+
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px) rotate(-5deg); }
+    75% { transform: translateX(8px) rotate(5deg); }
+  }
+
+  /* 超級細菌紫黑光環 */
+  .super-aura {
+    animation: pulse-purple 1s infinite alternate;
+    border-radius: 50%;
+  }
+
+  @keyframes pulse-purple {
+    from { filter: drop-shadow(0 0 6px #9333ea); }
+    to { filter: drop-shadow(0 0 18px #581c87); }
+  }
+
+  /* 黃金處方箋光環 */
+  .gold-aura {
+    animation: pulse-gold 0.8s infinite alternate;
+  }
+
+  @keyframes pulse-gold {
+    from { filter: drop-shadow(0 0 6px #f59e0b); transform: scale(0.96); }
+    to { filter: drop-shadow(0 0 18px #fbbf24); transform: scale(1.04); }
+  }
+
+  .entity-hp {
+    position: absolute;
+    top: 2px;
+    background: rgba(255,255,255,0.9);
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    z-index: 2;
+  }
+
+  .entity-label {
+    font-size: 0.78rem;
+    font-weight: bold;
+    background: rgba(255, 255, 255, 0.92);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-top: -6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.15);
+    white-space: nowrap;
+  }
+
+  /* 浮動提示文字 */
+  .floating-msg {
+    position: absolute;
+    font-weight: 900;
+    font-size: 1.05rem;
+    padding: 4px 10px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.95);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    pointer-events: none;
+    z-index: 30;
+    animation: floatUp 1.1s ease-out forwards;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  @keyframes floatUp {
+    0% { opacity: 1; transform: translate(-50%, 0) scale(0.8); }
+    20% { transform: translate(-50%, -15px) scale(1.05); }
+    100% { opacity: 0; transform: translate(-50%, -55px) scale(1); }
+  }
+
+  /* 底部雙工具切換區（平板優化大按鈕） */
+  footer {
+    background: #ffffff;
+    padding: 10px 16px 16px;
+    box-shadow: 0 -4px 12px rgba(0,0,0,0.08);
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    z-index: 10;
+  }
+
+  .tool-btn {
+    flex: 1;
+    max-width: 260px;
+    height: 68px;
+    border-radius: 18px;
+    border: 4px solid transparent;
+    font-size: 1.15rem;
+    font-weight: 900;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.15s;
+    background: #f1f5f9;
+    color: #475569;
+  }
+
+  .tool-btn .icon {
+    font-size: 1.8rem;
+  }
+
+  .tool-btn.active-antibiotic {
+    background: #eff6ff;
+    border-color: var(--primary-blue);
+    color: var(--primary-blue);
+    box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+    transform: translateY(-3px);
+  }
+
+  .tool-btn.active-trash {
+    background: #f0fdf4;
+    border-color: var(--primary-green);
+    color: var(--primary-green);
+    box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3);
+    transform: translateY(-3px);
+  }
+
+  /* 彈窗系統（開局圖鑑 & 結算畫面） */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.78);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    z-index: 100;
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-card {
+    background: #ffffff;
+    width: 100%;
+    max-width: 680px;
+    max-height: 90dvh;
+    border-radius: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3);
+  }
+
+  .modal-header {
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    color: white;
+    padding: 18px 24px;
+    text-align: center;
+  }
+
+  .modal-header h1 {
+    margin: 0;
+    font-size: 1.5rem;
+  }
+
+  .modal-header p {
+    margin: 6px 0 0;
+    font-size: 0.95rem;
+    opacity: 0.92;
+  }
+
+  .modal-body {
+    padding: 18px 22px;
+    overflow-y: auto;
+    flex: 1;
+  }
+
+  .tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 14px;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 8px;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 10px;
+    border: none;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 1rem;
+    cursor: pointer;
+    background: #f1f5f9;
+    color: #64748b;
+  }
+
+  .tab-btn.active {
+    background: #2563eb;
+    color: white;
+  }
+
+  .guide-section { display: none; }
+  .guide-section.active { display: block; }
+
+  .rule-box {
+    background: #f8fafc;
+    border-left: 5px solid #2563eb;
+    padding: 12px 14px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .rule-box.warn { border-left-color: #dc2626; background: #fef2f2; }
+  .rule-box.green { border-left-color: #16a34a; background: #f0fdf4; }
+
+  .encyclopedia-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 10px;
+  }
+
+  .char-card {
+    border: 2px solid #e2e8f0;
+    border-radius: 14px;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: #fff;
+  }
+
+  .char-icon {
+    width: 60px;
+    height: 60px;
+    flex-shrink: 0;
+  }
+
+  .char-info h4 {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .char-info p {
+    margin: 0;
+    font-size: 0.82rem;
+    color: #475569;
+    line-height: 1.35;
+  }
+
+  .tag-pill {
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 6px;
+    color: white;
+    font-weight: bold;
+  }
+  .tag-blue { background: #2563eb; }
+  .tag-green { background: #16a34a; }
+  .tag-purple { background: #7e22ce; }
+  .tag-gold { background: #d97706; }
+
+  .modal-footer {
+    padding: 14px 22px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    text-align: center;
+  }
+
+  .primary-btn {
+    background: linear-gradient(135deg, #16a34a, #15803d);
+    color: white;
+    border: none;
+    padding: 14px 36px;
+    font-size: 1.2rem;
+    font-weight: 900;
+    border-radius: 16px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.35);
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .primary-btn:active { transform: scale(0.97); }
+
+  /* 結算數據表格 */
+  .result-title-box {
+    text-align: center;
+    padding: 14px;
+    border-radius: 16px;
+    background: #f8fafc;
+    margin-bottom: 14px;
+    border: 2px solid #cbd5e1;
+  }
+
+  .result-rank {
+    font-size: 1.6rem;
+    font-weight: 900;
+    margin: 6px 0;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+
+  .stat-item {
+    background: #f1f5f9;
+    padding: 10px 14px;
+    border-radius: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.9rem;
+    font-weight: bold;
+  }
+
+  .stat-num {
+    font-size: 1.25rem;
+    font-weight: 900;
+  }
+
+  .edu-summary {
+    background: #eff6ff;
+    border: 2px solid #bfdbfe;
+    border-radius: 14px;
+    padding: 12px 16px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: #1e3a8a;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+  <!-- 頂部狀態列 -->
+  <header>
+    <div class="top-row">
+      <div class="stat-badge">⏱️ <span id="time-display">60</span>s</div>
+      <div class="stage-badge" id="stage-display">階段 1：初期感染</div>
+      <div class="stat-badge">🏆 <span id="score-display">0</span></div>
+      <button class="mute-btn" id="mute-btn" title="靜音切換">🔊</button>
+    </div>
+    <div class="bars-row">
+      <div class="bar-container">
+        <div class="bar-label">
+          <span>❤️ 身體健康值</span>
+          <span id="hp-text">100%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="hp-fill"></div>
+        </div>
+      </div>
+      <div class="bar-container">
+        <div class="bar-label">
+          <span>☣️ 抗藥性警告</span>
+          <span id="res-text">0%</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-fill" id="res-fill"></div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 九宮格主舞台 -->
+  <main id="game-area">
+    <div class="grid-board" id="grid-board">
+      <!-- 9個洞由 JS 動態生成 -->
+    </div>
+  </main>
+
+  <!-- 底部雙工具切換鈕 -->
+  <footer>
+    <button class="tool-btn active-antibiotic" id="btn-antibiotic" onclick="selectTool('antibiotic')">
+      <span class="icon">💊</span>
+      <div>
+        <div>抗生素</div>
+        <div style="font-size:0.75rem; font-weight:normal;">消滅致病細菌</div>
+      </div>
+    </button>
+    <button class="tool-btn" id="btn-trash" onclick="selectTool('trash')">
+      <span class="icon">🗑️</span>
+      <div>
+        <div>垃圾桶／不亂吃</div>
+        <div style="font-size:0.75rem; font-weight:normal;">清除病毒與過期藥</div>
+      </div>
+    </button>
+  </footer>
+
+  <!-- 開局教學與角色圖鑑彈窗 -->
+  <div class="modal-overlay" id="start-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h1>💊 抗生素大作戰：超級細菌保衛戰</h1>
+        <p>看清楚敵人是誰再下手，守住「四不一要」用藥原則！</p>
+      </div>
+      <div class="modal-body">
+        <div class="tabs">
+          <button class="tab-btn active" onclick="switchTab('tab-guide', this)">🎮 遊戲方式介紹</button>
+          <button class="tab-btn" onclick="switchTab('tab-dex', this)">📖 角色圖鑑 (必看)</button>
+        </div>
+
+        <!-- 分頁 1：玩法介紹 -->
+        <div class="guide-section active" id="tab-guide">
+          <div class="rule-box">
+            <strong>1. 平板雙工具切換：</strong><br>
+            點擊畫面下方的 <strong>「💊 抗生素」</strong> 或 <strong>「🗑️ 垃圾桶」</strong> 切換工具，再點擊九宮格裡冒出來的角色。
+          </div>
+          <div class="rule-box green">
+            <strong>2. 誰該用哪種工具？</strong><br>
+            • <strong>致病細菌</strong> 👉 用 <strong>💊 抗生素</strong> 消滅！<br>
+            • <strong>感冒病毒、流感病毒、過期/他人剩藥</strong> 👉 用 <strong>🗑️ 垃圾桶</strong> 丟掉（拒絕亂吃抗生素）！<br>
+            • <strong>腸道益生菌</strong> 👉 好菌千萬別打，讓它自己縮回去即可。
+          </div>
+          <div class="rule-box warn">
+            <strong>3. 兩大抗藥性危機（千萬小心！）：</strong><br>
+            • <strong>誤殺病毒：</strong>用抗生素打感冒或流感病毒，抗藥性會暴增！<br>
+            • <strong>療程半途而廢：</strong>遇到 3 格血量的「頑強細菌」，必須<strong>連點 3 下</strong>打死！如果只打 1～2 下就讓它縮回去，下次就會進化成打不死的<strong>「超級細菌」</strong>！
+          </div>
+        </div>
+
+        <!-- 分頁 2：角色圖鑑 -->
+        <div class="guide-section" id="tab-dex">
+          <div class="encyclopedia-grid" id="dex-container">
+            <!-- 由 JS 填入 SVG 圖鑑 -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="startGame()">我準備好了，開始挑戰！</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 結算畫面彈窗 -->
+  <div class="modal-overlay hidden" id="end-modal">
+    <div class="modal-card">
+      <div class="modal-header" id="end-header">
+        <h1>📊 戰鬥結算與衛教報告</h1>
+        <p>請將此畫面留著，準備進行課堂討論！</p>
+      </div>
+      <div class="modal-body">
+        <div class="result-title-box">
+          <div style="font-size:0.9rem; color:#64748b;">最終得分：<strong id="final-score" style="font-size:1.3rem; color:#0f172a;">0</strong> 分</div>
+          <div class="result-rank" id="final-rank">精準用藥大師</div>
+          <div id="final-reason" style="font-size:0.9rem; color:#475569;">成功守護身體健康！</div>
+        </div>
+
+        <h4 style="margin: 0 0 8px; color:#334155;">📋 本局行為統計（課後討論數據）</h4>
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span>✅ 成功消滅細菌</span>
+            <span class="stat-num" style="color:#16a34a;" id="stat-killed">0</span>
+          </div>
+          <div class="stat-item">
+            <span>⚠️ 誤用抗生素打病毒</span>
+            <span class="stat-num" style="color:#dc2626;" id="stat-wrong-virus">0</span>
+          </div>
+          <div class="stat-item">
+            <span>☣️ 半途而廢(變超級細菌)</span>
+            <span class="stat-num" style="color:#7e22ce;" id="stat-abandoned">0</span>
+          </div>
+          <div class="stat-item">
+            <span>💊 誤傷好菌／誤食過期藥</span>
+            <span class="stat-num" style="color:#d97706;" id="stat-bad-pill">0</span>
+          </div>
+        </div>
+
+        <div class="edu-summary" id="edu-feedback">
+          <!-- 動態衛教總結 -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="primary-btn" onclick="resetToStart()">再玩一局</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* =========================================
+   1. Web Audio API 內建音效引擎（免外部音檔）
+   ========================================= */
+const AudioEngine = {
+  ctx: null,
+  muted: false,
+  init() {
+    if (!this.ctx) {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (this.ctx.state === 'suspended') {
+      this.ctx.resume();
+    }
+  },
+  playTone(freq, type, duration, vol = 0.2, slideTo = null) {
+    if (this.muted) return;
+    this.init();
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+    if (slideTo) {
+      osc.frequency.exponentialRampToValueAtTime(slideTo, this.ctx.currentTime + duration);
+    }
+    gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+    osc.start();
+    osc.stop(this.ctx.currentTime + duration);
+  },
+  hit() { this.playTone(520, 'sine', 0.12, 0.25, 780); },       // 擊中頑強細菌
+  kill() { this.playTone(600, 'triangle', 0.2, 0.3, 1100); },   // 成功消滅
+  trash() { this.playTone(380, 'sine', 0.15, 0.25, 520); },     // 正確丟垃圾桶
+  error() { this.playTone(160, 'sawtooth', 0.35, 0.3, 90); },   // 誤用抗生素警報
+  evolve() { this.playTone(140, 'square', 0.5, 0.35, 65); },    // 進化成超級細菌
+  shield() { this.playTone(220, 'triangle', 0.15, 0.2, 180); }, // 打到無敵超級細菌
+  heal() {                                                      // 醫師處方箋救援
+    this.playTone(523, 'sine', 0.15, 0.25);
+    setTimeout(() => this.playTone(659, 'sine', 0.15, 0.25), 100);
+    setTimeout(() => this.playTone(784, 'sine', 0.3, 0.3), 200);
+  }
+};
+
+document.getElementById('mute-btn').addEventListener('click', () => {
+  AudioEngine.muted = !AudioEngine.muted;
+  document.getElementById('mute-btn').textContent = AudioEngine.muted ? '🔇' : '🔊';
+});
+
+/* =========================================
+   2. 角色 SVG 圖庫與圖鑑資料定義
+   ========================================= */
+const CHARACTERS = {
+  pneumo: {
+    name: '肺炎鏈球菌',
+    tag: '普通細菌',
+    tagClass: 'tag-blue',
+    desc: '【用💊抗生素打1下】會引起肺炎或中耳炎的致病菌，用抗生素即可消滅。',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="38" cy="55" r="26" fill="#3b82f6" stroke="#1d4ed8" stroke-width="4"/>
+      <circle cx="64" cy="55" r="24" fill="#60a5fa" stroke="#1d4ed8" stroke-width="4"/>
+      <path d="M25 32 L18 18 L34 26 Z" fill="#1e40af"/>
+      <path d="M75 32 L82 18 L66 26 Z" fill="#1e40af"/>
+      <circle cx="33" cy="50" r="4" fill="#fff"/><circle cx="34" cy="50" r="2" fill="#000"/>
+      <circle cx="66" cy="50" r="4" fill="#fff"/><circle cx="65" cy="50" r="2" fill="#000"/>
+      <path d="M42 66 Q50 74 58 66" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>
+    </svg>`
+  },
+  staph: {
+    name: '金黃色葡萄球菌',
+    tag: '頑強細菌(3血)',
+    tagClass: 'tag-blue',
+    desc: '【用💊抗生素連點3下】若打一半縮回去（擅自停藥），下次會進化成超級細菌！',
+    hp: 3,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="36" r="18" fill="#f59e0b" stroke="#b45309" stroke-width="3"/>
+      <circle cx="34" cy="56" r="18" fill="#fbbf24" stroke="#b45309" stroke-width="3"/>
+      <circle cx="66" cy="56" r="18" fill="#fbbf24" stroke="#b45309" stroke-width="3"/>
+      <circle cx="50" cy="72" r="18" fill="#f59e0b" stroke="#b45309" stroke-width="3"/>
+      <rect x="24" y="28" width="52" height="8" rx="4" fill="#dc2626"/>
+      <path d="M36 48 L46 53 M64 48 L54 53" stroke="#78350f" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="42" cy="56" r="3" fill="#000"/><circle cx="58" cy="56" r="3" fill="#000"/>
+      <path d="M43 68 Q50 62 57 68" stroke="#78350f" stroke-width="3" fill="none"/>
+    </svg>`
+  },
+  superbug: {
+    name: '超級細菌',
+    tag: '抗藥性魔王',
+    tagClass: 'tag-purple',
+    desc: '【抗生素無效！】由未完成療程進化而來，只能等「👨‍⚕️醫師處方箋」出現才能消滅！',
+    hp: 999,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="56" r="32" fill="#3b0764" stroke="#a855f7" stroke-width="4"/>
+      <path d="M18 46 Q50 12 82 46 Z" fill="#475569" stroke="#1e293b" stroke-width="3"/>
+      <rect x="28" y="48" width="18" height="10" rx="2" fill="#ef4444"/>
+      <rect x="54" y="48" width="18" height="10" rx="2" fill="#ef4444"/>
+      <line x1="46" y1="52" x2="54" y2="52" stroke="#cbd5e1" stroke-width="3"/>
+      <path d="M36 72 L43 67 L50 72 L57 67 L64 72" stroke="#e9d5ff" stroke-width="3" fill="none"/>
+    </svg>`
+  },
+  cold: {
+    name: '一般感冒病毒',
+    tag: '鼻病毒',
+    tagClass: 'tag-green',
+    desc: '【用🗑️垃圾桶清除】感冒多為病毒引起，吃抗生素完全沒效，還會增加抗藥性！',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="52" r="26" fill="#22c55e" stroke="#15803d" stroke-width="3"/>
+      <line x1="50" y1="16" x2="50" y2="26" stroke="#15803d" stroke-width="4"/><circle cx="50" cy="14" r="4" fill="#4ade80"/>
+      <line x1="50" y1="78" x2="50" y2="88" stroke="#15803d" stroke-width="4"/><circle cx="50" cy="90" r="4" fill="#4ade80"/>
+      <line x1="14" y1="52" x2="24" y2="52" stroke="#15803d" stroke-width="4"/><circle cx="12" cy="52" r="4" fill="#4ade80"/>
+      <line x1="76" y1="52" x2="86" y2="52" stroke="#15803d" stroke-width="4"/><circle cx="88" cy="52" r="4" fill="#4ade80"/>
+      <circle cx="41" cy="48" r="3.5" fill="#fff"/><circle cx="59" cy="48" r="3.5" fill="#fff"/>
+      <path d="M54 56 Q60 66 55 72 Q50 66 54 56" fill="#bae6fd"/>
+      <path d="M42 64 Q50 60 58 64" stroke="#14532d" stroke-width="2.5" fill="none"/>
+    </svg>`
+  },
+  flu: {
+    name: '流感病毒',
+    tag: '需專用抗病毒藥',
+    tagClass: 'tag-green',
+    desc: '【用🗑️垃圾桶清除】流感要吃「抗病毒藥物」，抗生素殺不死流感病毒！',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <circle cx="50" cy="54" r="26" fill="#ef4444" stroke="#991b1b" stroke-width="3"/>
+      <polygon points="32,30 40,16 50,28 60,16 68,30" fill="#facc15" stroke="#ca8a04" stroke-width="2"/>
+      <path d="M36 48 L45 52 M64 48 L55 52" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <path d="M40 66 Q50 58 60 66" stroke="#fff" stroke-width="3" fill="none"/>
+      <path d="M76 34 Q82 42 76 48 Q70 42 76 34" fill="#38bdf8"/>
+    </svg>`
+  },
+  probiotic: {
+    name: '腸道益生菌',
+    tag: '體內好菌勿打',
+    tagClass: 'tag-green',
+    desc: '【千萬別打！讓它自然縮回】抗生素會好壞菌通殺，誤打會扣分與扣健康值。',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <rect x="32" y="24" width="36" height="56" rx="18" fill="#fbcfe8" stroke="#db2777" stroke-width="3"/>
+      <path d="M32 52 H68 V62 A18 18 0 0 1 32 62 Z" fill="#f472b6"/>
+      <circle cx="43" cy="40" r="3" fill="#831843"/><circle cx="57" cy="40" r="3" fill="#831843"/>
+      <path d="M44 46 Q50 52 56 46" stroke="#831843" stroke-width="2.5" fill="none"/>
+      <line x1="72" y1="22" x2="72" y2="54" stroke="#64748b" stroke-width="3"/>
+      <rect x="72" y="22" width="18" height="12" fill="#fff" stroke="#94a3b8" stroke-width="1.5"/>
+    </svg>`
+  },
+  expired: {
+    name: '王阿姨的剩藥／過期藥',
+    tag: '危險藥品',
+    tagClass: 'tag-green',
+    desc: '【用🗑️垃圾桶丟掉】不吃別人的藥、不吃過期藥！用抗生素點到會誤食中毒。',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <rect x="26" y="28" width="48" height="52" rx="8" fill="#64748b" stroke="#334155" stroke-width="3"/>
+      <rect x="34" y="20" width="32" height="10" rx="3" fill="#94a3b8"/>
+      <circle cx="50" cy="50" r="11" fill="#f8fafc"/>
+      <rect x="44" y="58" width="12" height="7" rx="2" fill="#f8fafc"/>
+      <circle cx="46" cy="49" r="2.5" fill="#1e293b"/><circle cx="54" cy="49" r="2.5" fill="#1e293b"/>
+      <text x="50" y="75" font-size="10" fill="#fef08a" font-weight="bold" text-anchor="middle">過期/他人</text>
+    </svg>`
+  },
+  prescription: {
+    name: '醫師處方箋（後線治療）',
+    tag: '黃金救援卡',
+    tagClass: 'tag-gold',
+    desc: '【任何工具點擊皆可！】遵照醫囑精準治療，立即消滅場上所有超級細菌並降低抗藥性！',
+    hp: 1,
+    svg: `<svg viewBox="0 0 100 100" width="100%" height="100%">
+      <rect x="26" y="20" width="48" height="62" rx="6" fill="#fef08a" stroke="#d97706" stroke-width="3"/>
+      <line x1="36" y1="36" x2="64" y2="36" stroke="#b45309" stroke-width="3"/>
+      <line x1="36" y1="48" x2="64" y2="48" stroke="#b45309" stroke-width="3"/>
+      <path d="M42 64 L48 70 L62 56" stroke="#16a34a" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <text x="50" y="16" font-size="12" fill="#d97706" font-weight="bold" text-anchor="middle">👨‍⚕️ 醫囑</text>
+    </svg>`
+  }
+};
+
+// 初始化圖鑑內容
+function buildDex() {
+  const container = document.getElementById('dex-container');
+  container.innerHTML = '';
+  Object.values(CHARACTERS).forEach(char => {
+    const card = document.createElement('div');
+    card.className = 'char-card';
+    card.innerHTML = `
+      <div class="char-icon">${char.svg}</div>
+      <div class="char-info">
+        <h4>${char.name} <span class="tag-pill ${char.tagClass}">${char.tag}</span></h4>
+        <p>${char.desc}</p>
+      </div>
+    `;
+    container.appendChild(card);
+  });
+}
+buildDex();
+
+function switchTab(tabId, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.guide-section').forEach(s => s.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById(tabId).classList.add('active');
+}
+
+/* =========================================
+   3. 遊戲核心狀態與邏輯
+   ========================================= */
+let gameState = {
+  isRunning: false,
+  timeLeft: 60,
+  score: 0,
+  hp: 100,
+  resistance: 0,
+  currentTool: 'antibiotic', // 'antibiotic' | 'trash'
+  pendingSuperbugs: 0,       // 因為打一半逃跑，排隊準備登場的超級細菌數量
+  holes: [],                 // 9個洞的狀態
+  stats: {
+    killedBacteria: 0,
+    wrongVirus: 0,
+    abandonedCourse: 0,
+    badPillOrProbiotic: 0
+  }
+};
+
+let mainTimer = null;
+let spawnTimer = null;
+let superbugDamageTimer = null;
+
+// 建立九宮格 DOM
+const gridBoard = document.getElementById('grid-board');
+for (let i = 0; i < 9; i++) {
+  const holeEl = document.createElement('div');
+  holeEl.className = 'hole';
+  holeEl.dataset.index = i;
+  // 同時支援 pointerdown，平板觸控零延遲
+  holeEl.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    handleHoleClick(i, holeEl);
+  });
+  gridBoard.appendChild(holeEl);
+  gameState.holes.push({
+    active: false,
+    type: null,
+    hp: 0,
+    maxHp: 0,
+    damaged: false,
+    timeoutId: null,
+    el: holeEl
+  });
+}
+
+function selectTool(tool) {
+  gameState.currentTool = tool;
+  const btnAb = document.getElementById('btn-antibiotic');
+  const btnTr = document.getElementById('btn-trash');
+  btnAb.className = 'tool-btn' + (tool === 'antibiotic' ? ' active-antibiotic' : '');
+  btnTr.className = 'tool-btn' + (tool === 'trash' ? ' active-trash' : '');
+}
+
+function updateUI() {
+  document.getElementById('time-display').textContent = gameState.timeLeft;
+  document.getElementById('score-display').textContent = gameState.score;
+
+  gameState.hp = Math.max(0, Math.min(100, gameState.hp));
+  gameState.resistance = Math.max(0, Math.min(100, gameState.resistance));
+
+  document.getElementById('hp-text').textContent = Math.round(gameState.hp) + '%';
+  document.getElementById('hp-fill').style.width = gameState.hp + '%';
+  document.getElementById('hp-fill').style.backgroundColor = gameState.hp > 40 ? '#22c55e' : '#ef4444';
+
+  document.getElementById('res-text').textContent = Math.round(gameState.resistance) + '%';
+  document.getElementById('res-fill').style.width = gameState.resistance + '%';
+
+  // 更新階段提示
+  const stageEl = document.getElementById('stage-display');
+  if (gameState.timeLeft > 40) {
+    stageEl.textContent = '階段 1：初期感染';
+    stageEl.style.background = '#dbeafe';
+    stageEl.style.color = '#1d4ed8';
+  } else if (gameState.timeLeft > 20) {
+    stageEl.textContent = '階段 2：療程考驗';
+    stageEl.style.background = '#fef3c7';
+    stageEl.style.color = '#b45309';
+  } else {
+    stageEl.textContent = '階段 3：抗藥危機！';
+    stageEl.style.background = '#fee2e2';
+    stageEl.style.color = '#b91c1c';
+  }
+}
+
+function showFloatingText(holeEl, text, color) {
+  const rect = holeEl.getBoundingClientRect();
+  const mainRect = document.getElementById('game-area').getBoundingClientRect();
+  const msg = document.createElement('div');
+  msg.className = 'floating-msg';
+  msg.textContent = text;
+  msg.style.color = color;
+  msg.style.left = (rect.left - mainRect.left + rect.width / 2) + 'px';
+  msg.style.top = (rect.top - mainRect.top + 15) + 'px';
+  document.getElementById('game-area').appendChild(msg);
+  setTimeout(() => msg.remove(), 1100);
+}
+
+function startGame() {
+  AudioEngine.init();
+  document.getElementById('start-modal').classList.add('hidden');
+  document.getElementById('end-modal').classList.add('hidden');
+
+  // 重置狀態
+  gameState.isRunning = true;
+  gameState.timeLeft = 60;
+  gameState.score = 0;
+  gameState.hp = 100;
+  gameState.resistance = 0;
+  gameState.pendingSuperbugs = 0;
+  gameState.stats = {
+    killedBacteria: 0,
+    wrongVirus: 0,
+    abandonedCourse: 0,
+    badPillOrProbiotic: 0
+  };
+  selectTool('antibiotic');
+
+  gameState.holes.forEach(h => clearHole(h));
+  updateUI();
+
+  // 主計時器（每秒）
+  mainTimer = setInterval(() => {
+    gameState.timeLeft--;
+    updateUI();
+    if (gameState.timeLeft <= 0) {
+      endGame('timeup');
+    }
+  }, 1000);
+
+  // 超級細菌持續扣血計時器
+  superbugDamageTimer = setInterval(() => {
+    const superCount = gameState.holes.filter(h => h.active && h.type === 'superbug').length;
+    if (superCount > 0) {
+      gameState.hp -= superCount * 3;
+      updateUI();
+      if (gameState.hp <= 0) endGame('hpzero');
+    }
+  }, 1000);
+
+  scheduleNextSpawn();
+}
+
+function scheduleNextSpawn() {
+  if (!gameState.isRunning) return;
+
+  // 依據剩餘時間決定出現速度
+  let delay = 1100;
+  if (gameState.timeLeft <= 40 && gameState.timeLeft > 20) delay = 850;
+  if (gameState.timeLeft <= 20) delay = 650;
+
+  spawnTimer = setTimeout(() => {
+    spawnEntity();
+    scheduleNextSpawn();
+  }, delay);
+}
+
+function spawnEntity() {
+  if (!gameState.isRunning) return;
+  const emptyHoles = gameState.holes.filter(h => !h.active);
+  if (emptyHoles.length === 0) return;
+
+  const hole = emptyHoles[Math.floor(Math.random() * emptyHoles.length)];
+  let chosenType = 'pneumo';
+
+  // 若有「打一半逃跑」排隊的超級細菌，或抗藥性達 100%，優先派出超級細菌
+  if (gameState.pendingSuperbugs > 0) {
+    chosenType = 'superbug';
+    gameState.pendingSuperbugs--;
+    AudioEngine.evolve();
+  } else if (gameState.resistance >= 100 && Math.random() < 0.45) {
+    chosenType = 'superbug';
+  } else {
+    // 依據關卡階段決定角色池
+    const r = Math.random();
+    const activeSuperbugs = gameState.holes.filter(h => h.active && h.type === 'superbug').length;
+
+    // 若場上有超級細菌或抗藥性高，提高「醫師處方箋」救援機率
+    if ((activeSuperbugs > 0 || gameState.resistance >= 50) && r < 0.16) {
+      chosenType = 'prescription';
+    } else if (gameState.timeLeft > 40) {
+      // 階段1：普通細菌 + 感冒病毒 + 流感病毒
+      if (r < 0.45) chosenType = 'pneumo';
+      else if (r < 0.75) chosenType = 'cold';
+      else chosenType = 'flu';
+    } else if (gameState.timeLeft > 20) {
+      // 階段2：加入頑強細菌(3血) + 益生菌
+      if (r < 0.25) chosenType = 'pneumo';
+      else if (r < 0.50) chosenType = 'staph';
+      else if (r < 0.70) chosenType = 'cold';
+      else if (r < 0.85) chosenType = 'flu';
+      else chosenType = 'probiotic';
+    } else {
+      // 階段3：全角色大亂鬥（加入過期/他人剩藥）
+      if (r < 0.20) chosenType = 'pneumo';
+      else if (r < 0.42) chosenType = 'staph';
+      else if (r < 0.58) chosenType = 'cold';
+      else if (r < 0.72) chosenType = 'flu';
+      else if (r < 0.84) chosenType = 'probiotic';
+      else chosenType = 'expired';
+    }
+  }
+
+  const charData = CHARACTERS[chosenType];
+  hole.active = true;
+  hole.type = chosenType;
+  hole.hp = charData.hp;
+  hole.maxHp = charData.hp;
+  hole.damaged = false;
+
+  renderHoleEntity(hole);
+
+  // 停留時間設定（頑強細菌給較多時間連點 3 下，超級細菌停留超久）
+  let stayDuration = 2200;
+  if (chosenType === 'staph') stayDuration = 2900;
+  if (chosenType === 'superbug') stayDuration = 7500;
+  if (chosenType === 'prescription') stayDuration = 2400;
+
+  hole.timeoutId = setTimeout(() => {
+    if (!hole.active) return;
+
+    // 核心衛教機制：頑強細菌被打 1~2 下卻沒打死就縮回去 -> 進化成超級細菌！
+    if (hole.type === 'staph' && hole.damaged && hole.hp > 0) {
+      gameState.pendingSuperbugs++;
+      gameState.stats.abandonedCourse++;
+      gameState.resistance += 20;
+      AudioEngine.evolve();
+      showFloatingText(hole.el, '⚠️擅自停藥！進化成超級細菌！', '#7e22ce');
+      updateUI();
+    }
+
+    clearHole(hole);
+  }, stayDuration);
+}
+
+function renderHoleEntity(hole) {
+  const charData = CHARACTERS[hole.type];
+  let hpHtml = '';
+  if (hole.type === 'staph') {
+    hpHtml = `<div class="entity-hp">${'❤️'.repeat(hole.hp)}${'🤍'.repeat(hole.maxHp - hole.hp)}</div>`;
+  } else if (hole.type === 'superbug') {
+    hpHtml = `<div class="entity-hp" style="background:#581c87;color:#fff;">🛡️抗藥免疫</div>`;
+  }
+
+  const auraClass = hole.type === 'superbug' ? 'super-aura' : (hole.type === 'prescription' ? 'gold-aura' : '');
+
+  hole.el.innerHTML = `
+    <div class="entity active ${auraClass}" id="ent-${hole.el.dataset.index}">
+      ${hpHtml}
+      ${charData.svg}
+      <div class="entity-label">${charData.name}</div>
+    </div>
+  `;
+}
+
+function clearHole(hole) {
+  if (hole.timeoutId) clearTimeout(hole.timeoutId);
+  hole.active = false;
+  hole.type = null;
+  hole.hp = 0;
+  hole.damaged = false;
+  hole.el.innerHTML = '';
+}
+
+function handleHoleClick(index, holeEl) {
+  if (!gameState.isRunning) return;
+  const hole = gameState.holes[index];
+  if (!hole.active) return;
+
+  const tool = gameState.currentTool;
+  const type = hole.type;
+  const entEl = document.getElementById(`ent-${index}`);
+
+  // 1. 黃金處方箋：任何工具點擊皆可觸發救援
+  if (type === 'prescription') {
+    AudioEngine.heal();
+    gameState.score += 300;
+    gameState.hp += 20;
+    gameState.resistance -= 30;
+    // 清除場上所有超級細菌
+    let clearedSuper = 0;
+    gameState.holes.forEach(h => {
+      if (h.active && h.type === 'superbug') {
+        clearHole(h);
+        clearedSuper++;
+      }
+    });
+    const msg = clearedSuper > 0 ? `👨‍⚕️ 精準用藥！消滅 ${clearedSuper} 隻超級細菌！` : '👨‍⚕️ 遵照醫囑！抗藥性大幅下降！';
+    showFloatingText(holeEl, msg, '#d97706');
+    clearHole(hole);
+    updateUI();
+    return;
+  }
+
+  // 2. 超級細菌：普通抗生素無效
+  if (type === 'superbug') {
+    AudioEngine.shield();
+    if (entEl) {
+      entEl.classList.remove('hit-shake');
+      void entEl.offsetWidth;
+      entEl.classList.add('hit-shake');
+    }
+    showFloatingText(holeEl, '🛡️ 無效！已產生抗藥性！', '#7e22ce');
+    return;
+  }
+
+  // 3. 玩家使用【💊 抗生素】
+  if (tool === 'antibiotic') {
+    if (type === 'pneumo') {
+      AudioEngine.kill();
+      gameState.score += 100;
+      gameState.hp += 3;
+      gameState.stats.killedBacteria++;
+      showFloatingText(holeEl, '+100 消滅細菌！', '#2563eb');
+      clearHole(hole);
+    } else if (type === 'staph') {
+      hole.hp--;
+      hole.damaged = true;
+      if (hole.hp > 0) {
+        AudioEngine.hit();
+        renderHoleEntity(hole);
+        const newEnt = document.getElementById(`ent-${index}`);
+        if (newEnt) newEnt.classList.add('hit-shake');
+        showFloatingText(holeEl, `繼續吃藥！剩 ${hole.hp} 次`, '#d97706');
+      } else {
+        AudioEngine.kill();
+        gameState.score += 300;
+        gameState.hp += 6;
+        gameState.stats.killedBacteria++;
+        showFloatingText(holeEl, '+300 完成完整療程！', '#16a34a');
+        clearHole(hole);
+      }
+    } else if (type === 'cold' || type === 'flu') {
+      AudioEngine.error();
+      gameState.resistance += 25;
+      gameState.stats.wrongVirus++;
+      const reason = type === 'cold' ? '抗生素殺不死感冒病毒！' : '流感要吃抗病毒藥，不是抗生素！';
+      showFloatingText(holeEl, `⚠️ ${reason}`, '#dc2626');
+      clearHole(hole);
+    } else if (type === 'probiotic') {
+      AudioEngine.error();
+      gameState.score = Math.max(0, gameState.score - 150);
+      gameState.hp -= 12;
+      gameState.stats.badPillOrProbiotic++;
+      showFloatingText(holeEl, '💥 誤傷益生菌！好壞菌通殺！', '#db2777');
+      clearHole(hole);
+    } else if (type === 'expired') {
+      AudioEngine.error();
+      gameState.hp -= 18;
+      gameState.resistance += 20;
+      gameState.stats.badPillOrProbiotic++;
+      showFloatingText(holeEl, '☠️ 誤食過期／他人藥品！', '#dc2626');
+      clearHole(hole);
+    }
+  }
+  // 4. 玩家使用【🗑️ 垃圾桶】
+  else if (tool === 'trash') {
+    if (type === 'cold' || type === 'flu') {
+      AudioEngine.trash();
+      gameState.score += 120;
+      showFloatingText(holeEl, '+120 正確！不亂吃抗生素！', '#16a34a');
+      clearHole(hole);
+    } else if (type === 'expired') {
+      AudioEngine.trash();
+      gameState.score += 150;
+      showFloatingText(holeEl, '+150 銷毀過期／他人剩藥！', '#16a34a');
+      clearHole(hole);
+    } else if (type === 'pneumo' || type === 'staph') {
+      AudioEngine.shield();
+      showFloatingText(holeEl, '細菌要用💊抗生素治療喔！', '#2563eb');
+    } else if (type === 'probiotic') {
+      AudioEngine.shield();
+      showFloatingText(holeEl, '益生菌是好菌，不用丟掉！', '#db2777');
+    }
+  }
+
+  updateUI();
+  if (gameState.hp <= 0) {
+    endGame('hpzero');
+  }
+}
+
+/* =========================================
+   4. 遊戲結算與課後討論回饋
+   ========================================= */
+function endGame(reason) {
+  gameState.isRunning = false;
+  clearInterval(mainTimer);
+  clearInterval(superbugDamageTimer);
+  clearTimeout(spawnTimer);
+  gameState.holes.forEach(h => clearHole(h));
+
+  document.getElementById('final-score').textContent = gameState.score;
+  document.getElementById('stat-killed').textContent = gameState.stats.killedBacteria + ' 隻';
+  document.getElementById('stat-wrong-virus').textContent = gameState.stats.wrongVirus + ' 次';
+  document.getElementById('stat-abandoned').textContent = gameState.stats.abandonedCourse + ' 次';
+  document.getElementById('stat-bad-pill').textContent = gameState.stats.badPillOrProbiotic + ' 次';
+
+  const rankEl = document.getElementById('final-rank');
+  const reasonEl = document.getElementById('final-reason');
+  const eduEl = document.getElementById('edu-feedback');
+  const headerEl = document.getElementById('end-header');
+
+  if (reason === 'hpzero' || gameState.resistance >= 80) {
+    headerEl.style.background = 'linear-gradient(135deg, #991b1b, #dc2626)';
+    rankEl.textContent = '☣️ 超級細菌培養皿';
+    rankEl.style.color = '#dc2626';
+    reasonEl.textContent = reason === 'hpzero' ? '身體健康值歸零，被抗藥性細菌擊倒了！' : '抗藥性指數過高，體內充滿超級細菌！';
+    eduEl.innerHTML = `
+      <strong>💡 衛教小叮嚀：</strong><br>
+      你剛剛體驗到了「無藥可醫」的無力感！一般感冒與流感都是<strong>病毒</strong>引起的，吃抗生素完全沒效；另外，吃到一半覺得症狀好轉就擅自停藥，會讓殘存的細菌進化成<strong>超級細菌</strong>。下次一定要遵守醫囑把療程吃完喔！
+    `;
+  } else if (gameState.score >= 1500 && gameState.wrongVirus <= 1 && gameState.abandonedCourse === 0) {
+    headerEl.style.background = 'linear-gradient(135deg, #15803d, #16a34a)';
+    rankEl.textContent = '🏆 精準用藥大師';
+    rankEl.style.color = '#16a34a';
+    reasonEl.textContent = '太強了！你完美分辨了細菌與病毒，並完成所有療程！';
+    eduEl.innerHTML = `
+      <strong>💡 衛教小叮嚀：</strong><br>
+      你完美守住了用藥安全「四不一要」原則：<strong>不主動要求抗生素、不隨便自己買藥、不吃他人的藥、不隨便停藥、要遵守醫囑</strong>！抗生素雖然會同時影響腸道益生菌（可透過飲食補充），但治療期間絕對不能因此自行停藥！
+    `;
+  } else {
+    headerEl.style.background = 'linear-gradient(135deg, #1d4ed8, #3b82f6)';
+    rankEl.textContent = '🛡️ 見習防疫小尖兵';
+    rankEl.style.color = '#2563eb';
+    reasonEl.textContent = '成功撐過 60 秒！但還有一些用藥小細節可以做得更好喔！';
+    eduEl.innerHTML = `
+      <strong>💡 衛教小叮嚀：</strong><br>
+      看看上方的統計數據：你是否不小心把抗生素拿去打感冒／流感病毒，或是頑強細菌點到一半就放它跑掉了呢？記得<strong>「抗生素只殺細菌、不殺病毒」</strong>，且療程一定要全部完成才不會養出超級細菌！
+    `;
+  }
+
+  document.getElementById('end-modal').classList.remove('hidden');
+}
+
+function resetToStart() {
+  document.getElementById('end-modal').classList.add('hidden');
+  document.getElementById('start-modal').classList.remove('hidden');
+}
+</script>
+</body>
+</html>
